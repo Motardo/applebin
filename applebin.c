@@ -1,9 +1,7 @@
 /*
   Given the filename of an AppleDouble header file on the command line followed
-  by the data fork file if it exists, converts the file(s) int a MacBinary
-  format file output to stdout
-
-
+  by the data fork file if it exists, converts the file(s) into a MacBinary
+  format file
 */
 
 #include <arpa/inet.h>
@@ -55,7 +53,7 @@ EntrySpec* readEntriesList(FILE *fp, int numEntries) {
   return entries;
 }
 
-FILE* openFile(char *filename) {
+FILE* openFile(const char *filename) {
   FILE *fp;
 
   fp = fopen(filename, "r");
@@ -82,27 +80,11 @@ void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
   if ((result = fread(&header[kFileType], 1, 8, fp)) != 8) bail(result, "Couldn't read file: FInfo");
 }
 
-/*
-void registerRFork(char *header, u_int32_t offset, u_int32_t length) {
-  //header[87] = length;
-  header.rForkLength = length;
-}
-
-void readRFork(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
-  int result;
-
-  // copy rfork length to header
-  if ((result = fseek(fp, ntohl(offset), SEEK_SET)) != 0) bail(result, "Couldn't seek file: RFork");
-  if ((result = fread(&header[65], 1, 4, fp)) != 8) bail(result, "Couldn't read file: RFork");
-
-}
-*/
-
 void setFilename(char *header, const char *filename) {
-  size_t len;
+  int len;
 
   // TODO drop the marker characters at the beginning of the filename
-  len = strnlen(filename, (size_t)kMaxFileName);
+  len = min(kMaxFileName, strlen(filename));
   header[kFileNameLen] = (char)len;
   memcpy(&header[kFileName], filename, len);
 }
@@ -165,6 +147,7 @@ void copyFile(FILE *dest, FILE *source, int length) {
   remainder = length % kBufferSize;
   if (fread(gBuffer, 1, remainder, source) != remainder) bail(CANTREAD, "copyFile: Read error");
   if (fwrite(gBuffer, 1, remainder, dest) != remainder) bail(CANTWRITE, "copyFile: Write error");
+  fclose(source);
 }
 
 void writeRFork(FILE *binFile, FILE *aDF, EntrySpec entry) {
@@ -178,8 +161,14 @@ void writeRFork(FILE *binFile, FILE *aDF, EntrySpec entry) {
   if (fwrite(gZeros, 1, padding, binFile) != padding) bail(CANTWRITE, "writRFork: Write padding zeros");
 }
 
-void writeDFork(FILE *binFile, const char *filename) {
+void writeDFork(FILE *binFile, const char *filename, int length) {
+  int padding;
+  FILE *fp;
 
+  fp = openFile(filename);
+  copyFile(binFile, fp, length);
+  padding = (128 - (length & 0x0000007F) % 128);
+  if (fwrite(gZeros, 1, padding, binFile) != padding) bail(CANTWRITE, "writDFork: Write padding zeros");
 }
 
 /*
@@ -188,29 +177,25 @@ void writeDFork(FILE *binFile, const char *filename) {
 */
 int main(int argc, char *argv[]) {
   FILE *aDF, *binFile;
-  int numEntries, result, rForkEntry, dataForkLen;
-  char *filename;
+  int numEntries, rForkEntry, dataForkLen;
   EntrySpec *entries;
   char header[128] = {0};
 
   dataForkLen = 0;
 
-  filename = argv[1];
-  aDF = openFile(filename);
+  aDF = openFile(argv[1]);
   numEntries = readHeader(aDF);
   entries = readEntriesList(aDF, numEntries);
 
   printf("Num entries: %d\n", numEntries);
   printEntriesList(entries, numEntries);
 
-  rForkEntry = makeBinHeader(header, aDF, entries, numEntries, filename);
+  rForkEntry = makeBinHeader(header, aDF, entries, numEntries, argv[1]);
   if (argc >= 3) dataForkLen = registerDataFork(header, argv[2]);
 
   binFile = writeHeader(header);
+  if (argc >= 3) writeDFork(binFile, argv[2], dataForkLen);
   writeRFork(binFile, aDF, entries[rForkEntry]);
-  if (argc >= 3) writeDFork(binFile, argv[2]);
   fclose(binFile);
-  //readRFork(aDF, header, entries[i].offset, entries[i].length);
-  fclose(aDF);
-  return result;
+  return 0;
 }
