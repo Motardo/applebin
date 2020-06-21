@@ -6,6 +6,15 @@
 #define MAGIC2 0x00051607
 #define VERSION2 0x00020000
 
+typedef union AppleDoubleEntrySpec {
+  char raw[12];
+  struct {
+    u_int32_t type;
+    u_int32_t offset;
+    u_int32_t length;
+  };
+} EntrySpec;
+
 typedef union  AppleDoubleHeader {
   char raw[26];
   struct {
@@ -16,14 +25,23 @@ typedef union  AppleDoubleHeader {
   };
 } ADHeader;
 
-typedef union AppleDoubleEntrySpec {
-  char raw[12];
-  struct {
-    u_int32_t type;
-    u_int32_t offset;
-    u_int32_t length;
-  };
-} EntrySpec;
+typedef struct ADInfo {
+  char *dataFile;
+  char baseName[65];
+  int  numEntries;
+  signed char single; // 1 = singe, 0 = double
+  FILE *headerFile;
+  EntrySpec *entries;
+  int  rFork;
+} ADInfo;
+
+#define kNotFound -1
+
+ADHeader* readHeader(FILE *fp);
+ADInfo* readHeaderInfo(char *file1, char *file2);
+void printEntriesList(EntrySpec *entries, int numEntries);
+void readEntriesList(ADInfo *adi);
+void registerEntries(char *header, ADInfo *adi);
 
 // MacBinary header constants
 #define kFileNameLen 1
@@ -38,23 +56,18 @@ typedef union AppleDoubleEntrySpec {
 #define kMaxFileName 59
 
 // File copy chunk size
-// FIXME fread chokes on large chunks
-#define kBufferSize 4096
+#define kBufferSize (64 * 1024)
 
 // Prototypes
 FILE* openFile(const char *filename);
-void printEntriesList(EntrySpec *entries, int numEntries);
 void bail(char *message);
-void printEntriesList(EntrySpec *entries, int numEntries);
-void readEntriesList(FILE *fp, EntrySpec *entries, int numEntries);
-int readHeader(FILE *fp);
-EntrySpec* registerEntries(char *header, FILE *fp, EntrySpec *entries, int numEntries);
 void readRFork(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
 void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
-void registerRFork(char *header, u_int32_t offset, u_int32_t length);
+void registerRFork(char *header, ADInfo *adi);
 void setFilename(char *header, const char *filename);
 int registerDataFork(char *header, const char *filename);
 FILE* writeHeader(const char *header);
-void writeRFork(FILE *binFile, FILE *aDF, EntrySpec *rForkEntry);
+void writeRFork(FILE *binFile, ADInfo *adi);
 void writeDFork(FILE *binFile, const char *filename, int length);
 void copyFile(FILE *dest, FILE *source, int length);
+void padFile(FILE *fp, int length);

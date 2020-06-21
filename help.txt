@@ -1,0 +1,9 @@
+Usage: applebin [OPTION]... FILE [FILE]
+Convert an AppleSingle or AppleDouble file to MacBinary format.
+
+Mandatory arguments to long options are mandatory for short options too.
+  -o, --output=FILE     output converted MacBinary file to FILE
+  -l, --list-only       display a summary of the file(s) but do not convert
+  -h, --help            display this help and exit
+  -v, --version         output version information and exit
+
