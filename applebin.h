@@ -37,11 +37,13 @@ typedef struct ADInfo {
 
 #define kNotFound -1
 
+// singleDouble.c
 ADHeader* readHeader(FILE *fp);
 ADInfo* readHeaderInfo(char *file1, char *file2);
 void printEntriesList(EntrySpec *entries, int numEntries);
 void readEntriesList(ADInfo *adi);
 void registerEntries(char *header, ADInfo *adi);
+void printVerbose(ADInfo *adi);
 
 // MacBinary header constants
 #define kFileNameLen 1
@@ -54,9 +56,6 @@ void registerEntries(char *header, ADInfo *adi);
 #define kSuffix ".bin"
 #define kSuffixLen 4
 #define kMaxFileName 59
-
-// File copy chunk size
-#define kBufferSize (64 * 1024)
 
 // Prototypes
 FILE* openFile(const char *filename);

@@ -31,15 +31,11 @@ FILE* openFile(const char *filename) {
 
 void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
   // copy type and creator to header
-  if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("readFInfo: Couldn't seek file");
-  if (fread(&header[kFileType], 1, 8, fp) != 8) bail("readFInfo: Couldn't read file");
+  if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("Couldn't seek file");
+  if (fread(&header[kFileType], 1, 8, fp) != 8) bail("Couldn't read file");
 }
 
-/* Use dataFileName for AppleDouble, args->file1 for AppleSingle
-   Override with original Mac filename if encoded in header
- */
 void setFilename(char *header, const char *filename) {
-  // FIXME drop the marker characters at the beginning of the filename
   if (filename[0] == '.' && filename[1] == '_') filename = filename + 2;
   int len = strlen(filename);
 
@@ -50,7 +46,7 @@ void setFilename(char *header, const char *filename) {
 
 int registerDataFork(char *header, const char *filename) {
   struct stat statbuf;
-  if (stat(filename, &statbuf) != 0) bail("registerDataFork: couldn't stat file");
+  if (stat(filename, &statbuf) != 0) bail("Couldn't stat file");
 
   int dataSize = htonl(statbuf.st_size);
   memcpy(&header[kDForkLength], (char *)&dataSize, 4);
@@ -67,23 +63,24 @@ FILE* writeHeader(const char *header) {
   filename[length + kSuffixLen] = '\0';
 
   FILE *fp = fopen(filename, "w");
-  if (fp == NULL) bail("writeHeader: Couldn't open bin file");
-  if (fwrite(header, 1, 128, fp) != 128) bail("writeHeader: Couldn't write header");
+  if (fp == NULL) bail("Couldn't open bin file");
+  if (fwrite(header, 1, 128, fp) != 128) bail("Couldn't write header");
 
   return fp;
 }
 
 void copyFile(FILE *dest, FILE *source, int length) {
+  const size_t kBufferSize = (64 * 1024);
   char buffer[kBufferSize];
 
   int chunks = length / kBufferSize;
   for (int i = 0; i < chunks; i++) {
-    if (fread(buffer, kBufferSize, 1, source) != 1) bail("copyFile: read error");
-    if (fwrite(buffer, kBufferSize, 1, dest) != 1) bail("copyFile: write error");
+    if (fread(buffer, kBufferSize, 1, source) != 1) bail("Couldn't read file");
+    if (fwrite(buffer, kBufferSize, 1, dest) != 1) bail("Couldn't write file");
   }
   int remainder = length % kBufferSize;
-  if (fread(buffer, 1, remainder, source) != remainder) bail("copyFile: small read error");
-  if (fwrite(buffer, 1, remainder, dest) != remainder) bail("copyFile: small write error");
+  if (fread(buffer, 1, remainder, source) != remainder) bail("Couldn't read file");
+  if (fwrite(buffer, 1, remainder, dest) != remainder) bail("Couldn't write file");
   fclose(source);
 }
 
@@ -94,13 +91,13 @@ void copyFile(FILE *dest, FILE *source, int length) {
 void padFile(FILE *fp, int length) {
   int padding = 128 - (length % 128);
   if (padding == 128) return; // no padding needed
-  if (fwrite(gZeros, 1, padding, fp) != padding) bail("padFile: write padding zeros");
+  if (fwrite(gZeros, 1, padding, fp) != padding) bail("Couldn't write padding zeros");
 }
 
 void writeRFork(FILE *binFile, ADInfo *adi) {
   int offset = ntohl(adi->entries[adi->rFork].offset);
   int length = ntohl(adi->entries[adi->rFork].length);
-  if (fseek(adi->headerFile, offset, SEEK_SET) != 0) bail("writeRFork: Couldn't seek resource fork entry");
+  if (fseek(adi->headerFile, offset, SEEK_SET) != 0) bail("Couldn't seek file");
   copyFile(binFile, adi->headerFile, length);
   padFile(binFile, length);
 }
@@ -119,8 +116,7 @@ int main(int argc, char *argv[]) {
   adi->entries = entries;
   readEntriesList(adi);
 
-  printf("Num entries: %d\n", numEntries);
-  printEntriesList(entries, numEntries);
+  if (args->verbose) printVerbose(adi);
 
   char header[128] = {0};
   setFilename(header, adi->baseName);

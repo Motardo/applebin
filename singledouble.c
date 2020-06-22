@@ -9,14 +9,17 @@
 ADInfo gADInfo;
 
 void printEntriesList(EntrySpec *entries, int numEntries) {
-  int type, offset, length;
-
+  printf("Num entries: %d\n", numEntries);
   for (int i = 0; i < numEntries; i++) {
-    type = ntohl(entries[i].type);
-    offset = ntohl(entries[i].offset);
-    length = ntohl(entries[i].length);
+    int type = ntohl(entries[i].type);
+    int offset = ntohl(entries[i].offset);
+    int length = ntohl(entries[i].length);
     printf("Type: %08x\tOffset: %08x\tLength: %08x\n", type, offset, length);
   }
+}
+
+void printVerbose(ADInfo *adi) {
+  printEntriesList(adi->entries, adi->numEntries);
 }
 
 /* Read the entries list beginning at offset 26 */

@@ -1,61 +1,50 @@
-#include <stdio.h>     /* for printf */
-#include <stdlib.h>    /* for exit */
+#include <stdio.h>
+#include <stdlib.h>    /* exit */
+#include <string.h>    /* strdup */
 #include <getopt.h>
-#include <string.h>    /* for strdup */
 #include "arguments.h"
 
+static void printHelp(void);
+static void printVersion(void);
 
 Arguments gArgs;
 
+static void printHelp() {
+  printf("Help\n");
+  exit(EXIT_SUCCESS);
+}
+static void printVersion() {
+  printf("Version\n");
+  exit(EXIT_SUCCESS);
+}
 
+/** Parse command line options and arguments and return them in a struct
+ */
 Arguments* commandArgs(int argc, char **argv) {
-  int c;
   Arguments *args = &gArgs;
 
   while (1) {
-    int option_index = 0;
     static struct option long_options[] =
       {
-       {"help",    no_argument,       0, 'h'},
-       {"version", no_argument,       0, 'v'},
-       {"output",  required_argument, 0, 'o'},
-       {0,         0,                 0,  0 }
+       {"help",       no_argument,       0, 'h'},
+       {"version",    no_argument,       0, 'V'},
+       {"verbose",    no_argument,       0, 'v'},
+       {"no-output",  no_argument,       0, 'n'},
+       {"out-file",   required_argument, 0, 'o'},
+       {0,            0,                 0,  0 }
       };
 
-    c = getopt_long(argc, argv, "hvo:",
+    int option_index = 0;
+    int c = getopt_long(argc, argv, "hVvno:",
                     long_options, &option_index);
-    if (c == -1)
-      break;
-
-    switch (c) {
-    case 0:
-      printf("option %s", long_options[option_index].name);
-      if (optarg)
-        printf(" with arg %s", optarg);
-      printf("\n");
-      break;
-
-    case 'h':
-      printf("option h\n");
-      break;
-
-    case 'v':
-      printf("option v\n");
-      break;
-
-    case 'o':
-      printf("option o with value '%s'\n", optarg);
-      if (args->outFileName) exit(13); //FIXME
-      args->outFileName = strdup(optarg);
-      break;
-
-    case '?':
-    case ':':
-      exit(EXIT_FAILURE);
-      break;
-
-    default:
-      fprintf(stderr, "?? getopt returned character code 0%o ??\n", c);
+    if (c == -1) break;
+    else if (c == 'h') printHelp();
+    else if (c == 'V') printVersion();
+    else if (c == 'v') args->verbose = 1;
+    else if (c == 'n') args->noOutput = 1;
+    else if (c == 'o') args->outFileName = strdup(optarg);
+    else {
+      fprintf(stderr, "%s: unknown option '%c'\n", argv[0], c);
       exit(EXIT_FAILURE);
     }
   }
@@ -69,18 +58,8 @@ Arguments* commandArgs(int argc, char **argv) {
   if (optind < argc) args->file2 = strdup(argv[optind++]);
   if (optind < argc) {
     fprintf(stderr, "%s: too many arguments\n", argv[0]);
-    //TODO print usage
-    exit(EXIT_FAILURE);
+    printHelp();
   }
-  printf("file1: %s\n", args->file1);
-  printf("file2: %s\n", args->file2);
 
   return args;
 }
-#ifdef WithMain
-int main(int argc, char **argv) {
-  Arguments *args = commandArgs(argc, argv);
-
-  exit(EXIT_SUCCESS);
-}
-#endif
