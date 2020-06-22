@@ -28,14 +28,14 @@ typedef union  AppleDoubleHeader {
 typedef struct ADInfo {
   char *dataFile;
   char baseName[65];
-  int  numEntries;
+  unsigned int  numEntries;
   signed char single; // 1 = singe, 0 = double
   FILE *headerFile;
   EntrySpec *entries;
-  int  rFork;
+  unsigned int  rFork;
 } ADInfo;
 
-#define kNotFound -1
+#define kNotFound -1U
 
 // singleDouble.c
 ADHeader* readHeader(FILE *fp);
@@ -65,7 +65,7 @@ void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
 void registerRFork(char *header, ADInfo *adi);
 void setFilename(char *header, const char *filename);
 int registerDataFork(char *header, const char *filename);
-FILE* writeHeader(const char *header);
+FILE* writeHeader(const char *header, const char *outFileName);
 void writeRFork(FILE *binFile, ADInfo *adi);
 void writeDFork(FILE *binFile, const char *filename, int length);
 void copyFile(FILE *dest, FILE *source, int length);

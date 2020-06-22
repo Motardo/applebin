@@ -1,6 +1,6 @@
 P = applebin
 OBJECTS = arguments.o singledouble.o
-CFLAGS = -Wall -Wmissing-prototypes -g
+CFLAGS = -Wall -Wextra -Wmissing-prototypes -g
 LDLIBS=
 CC=gcc
 

@@ -31,7 +31,7 @@ void readEntriesList(ADInfo *adi) {
 void registerEntries(char *header, ADInfo *adi) {
   EntrySpec* entries = adi->entries;
   adi->rFork = kNotFound;
-  for (int i = 0; i < adi->numEntries; i++) {
+  for (unsigned int i = 0; i < adi->numEntries; i++) {
     int type = ntohl(entries[i].type);
     if (type == FINFO) readFInfo(adi->headerFile, header, entries[i].offset, entries[i].length);
     else if (type == RFORK) {

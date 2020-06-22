@@ -30,11 +30,16 @@ FILE* openFile(const char *filename) {
 }
 
 void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
-  // copy type and creator to header
-  if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("Couldn't seek file");
-  if (fread(&header[kFileType], 1, 8, fp) != 8) bail("Couldn't read file");
+  if (length > 8) {
+    // copy type and creator to header
+    if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("Couldn't seek file");
+    if (fread(&header[kFileType], 1, 8, fp) != 8) bail("Couldn't read file");
+  }
 }
 
+/** The internal filename to use if the AppleSingle/Double file does not specify one
+    Set to the basename of the AppleSingle/Double file
+*/
 void setFilename(char *header, const char *filename) {
   if (filename[0] == '.' && filename[1] == '_') filename = filename + 2;
   int len = strlen(filename);
@@ -54,11 +59,22 @@ int registerDataFork(char *header, const char *filename) {
   return statbuf.st_size;
 }
 
-FILE* writeHeader(const char *header) {
+/** Create the MacBinary file with a .bin extension
+    Use the out-filename option if given, else use the internal basename from the header
+*/
+FILE* writeHeader(const char *header, const char *outFileName) {
   char filename[kMaxFileName + kSuffixLen + 1]; // .bin\0
-  int length = header[kFileNameLen];
+  int length;
+  const char *baseName;
 
-  memcpy(filename, &header[kFileName], length);
+  if (outFileName) {
+    length = strlen(outFileName);
+    baseName = outFileName;
+  } else {
+    length = header[kFileNameLen];
+    baseName = &header[kFileName];
+  }
+  memcpy(filename, baseName, length);
   memcpy(&filename[length], kSuffix, kSuffixLen);
   filename[length + kSuffixLen] = '\0';
 
@@ -78,7 +94,7 @@ void copyFile(FILE *dest, FILE *source, int length) {
     if (fread(buffer, kBufferSize, 1, source) != 1) bail("Couldn't read file");
     if (fwrite(buffer, kBufferSize, 1, dest) != 1) bail("Couldn't write file");
   }
-  int remainder = length % kBufferSize;
+  size_t remainder = length % kBufferSize;
   if (fread(buffer, 1, remainder, source) != remainder) bail("Couldn't read file");
   if (fwrite(buffer, 1, remainder, dest) != remainder) bail("Couldn't write file");
   fclose(source);
@@ -89,7 +105,7 @@ void copyFile(FILE *dest, FILE *source, int length) {
     \param \c length the length of data previously written
 */
 void padFile(FILE *fp, int length) {
-  int padding = 128 - (length % 128);
+  size_t padding = 128 - (length % 128);
   if (padding == 128) return; // no padding needed
   if (fwrite(gZeros, 1, padding, fp) != padding) bail("Couldn't write padding zeros");
 }
@@ -126,7 +142,7 @@ int main(int argc, char *argv[]) {
   char *dataFile = adi->dataFile;
   if (dataFile) dataForkLen = registerDataFork(header, dataFile);
 
-  FILE *binFile = writeHeader(header);
+  FILE *binFile = writeHeader(header, args->outFileName);
   if (dataFile) writeDFork(binFile, dataFile, dataForkLen);
   if (adi->rFork != kNotFound) writeRFork(binFile, adi);
   fclose(binFile);
