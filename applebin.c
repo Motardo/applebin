@@ -126,26 +126,26 @@ void writeDFork(FILE *binFile, const char *filename, int length) {
 
 int main(int argc, char *argv[]) {
   Arguments *args = commandArgs(argc, argv);
-  ADInfo *adi = readHeaderInfo(args->file1, args->file2);
-  int numEntries = adi->numEntries;
+  ADInfo adi = readHeaderInfo(args->file1, args->file2);
+  int numEntries = adi.numEntries;
   EntrySpec entries[numEntries];
-  adi->entries = entries;
-  readEntriesList(adi);
+  adi.entries = entries;
+  readEntriesList(&adi);
 
-  if (args->verbose || args->noCreate) printVerbose(adi);
+  if (args->verbose || args->noCreate) printVerbose(&adi);
   if (args->noCreate) return(EXIT_SUCCESS);
 
   char header[128] = {0};
-  setFilename(header, adi->baseName);
-  registerEntries(header, adi);
+  setFilename(header, adi.baseName);
+  registerEntries(header, &adi);
 
   int dataForkLen;
-  char *dataFile = adi->dataFile;
+  char *dataFile = adi.dataFile;
   if (dataFile) dataForkLen = registerDataFork(header, dataFile);
 
   FILE *binFile = writeHeader(header, args->outFileName);
   if (dataFile) writeDFork(binFile, dataFile, dataForkLen);
-  if (adi->rFork != kNotFound) writeRFork(binFile, adi);
+  if (adi.rFork != kNotFound) writeRFork(binFile, &adi);
   fclose(binFile);
   return (EXIT_SUCCESS);
 }

@@ -26,6 +26,7 @@ typedef union  ADHeader {
 } ADHeader;
 
 typedef struct ADInfo {
+  char *header;
   char *dataFile;
   char baseName[65];
   unsigned int  numEntries;
@@ -39,7 +40,7 @@ typedef struct ADInfo {
 
 // singleDouble.c
 ADHeader* readHeader(FILE *fp);
-ADInfo* readHeaderInfo(char *file1, char *file2);
+ADInfo readHeaderInfo(char *file1, char *file2);
 void printEntriesList(EntrySpec *entries, int numEntries);
 void readEntriesList(ADInfo *adi);
 void registerEntries(char *header, ADInfo *adi);
