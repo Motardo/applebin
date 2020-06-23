@@ -1,10 +1,10 @@
 
 typedef struct Arguments {
-  char *outFileName;
-  char *file1;
-  char *file2;
-  signed char verbose;
-  signed char noOutput;
+  char *outFileName;    ///< \c --out-file option
+  char *file1;          ///< the first non-option argument
+  char *file2;          ///< the second non-option argument
+  signed char verbose;  ///< \c --verbose option
+  signed char noCreate; ///< \c --no-create option
 } Arguments;
 
 

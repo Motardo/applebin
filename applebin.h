@@ -6,7 +6,7 @@
 #define MAGIC2 0x00051607
 #define VERSION2 0x00020000
 
-typedef union AppleDoubleEntrySpec {
+typedef union EntrySpec {
   char raw[12];
   struct {
     u_int32_t type;
@@ -15,7 +15,7 @@ typedef union AppleDoubleEntrySpec {
   };
 } EntrySpec;
 
-typedef union  AppleDoubleHeader {
+typedef union  ADHeader {
   char raw[26];
   struct {
     u_int32_t magic;

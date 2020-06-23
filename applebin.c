@@ -132,7 +132,8 @@ int main(int argc, char *argv[]) {
   adi->entries = entries;
   readEntriesList(adi);
 
-  if (args->verbose) printVerbose(adi);
+  if (args->verbose || args->noCreate) printVerbose(adi);
+  if (args->noCreate) return(EXIT_SUCCESS);
 
   char header[128] = {0};
   setFilename(header, adi->baseName);
