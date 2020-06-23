@@ -17,6 +17,12 @@
 // Padding zeros for copying to file
 char gZeros[128] = {0};
 
+static char* makeBinFileName(ADInfo *adi);
+static FILE* writeHeader(const char *header, const char *binName);
+static void writeRFork(FILE *binFile, const ADInfo *adi);
+static void writeDFork(FILE *binFile, const char *filename, int length);
+static void registerDataFork(char *header, ADInfo *adi);
+
 void bail(char *message) {
   perror(message);
   fprintf(stderr, "%s:%d: %s: %d\n", __FILE__, __LINE__, message, errno);
@@ -27,14 +33,6 @@ FILE* openFile(const char *filename) {
   FILE *fp = fopen(filename, "r");
   if (fp == NULL) bail("Couldn't open file");
   return fp;
-}
-
-void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
-  if (length > 8) {
-    // copy type and creator to header
-    if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("Couldn't seek file");
-    if (fread(&header[kFileType], 1, 8, fp) != 8) bail("Couldn't read file");
-  }
 }
 
 /** The internal filename to use if the AppleSingle/Double file does not specify one
@@ -49,40 +47,35 @@ void setFilename(char *header, const char *filename) {
   memcpy(&header[kFileName], filename, len);
 }
 
-int registerDataFork(char *header, const char *filename) {
+static void registerDataFork(char *header, ADInfo *adi) {
   struct stat statbuf;
-  if (stat(filename, &statbuf) != 0) bail("Couldn't stat file");
-
+  if (stat(adi->dataFile, &statbuf) != 0) bail("Couldn't stat file");
+  adi->dataLength = statbuf.st_size;
   int dataSize = htonl(statbuf.st_size);
   memcpy(&header[kDForkLength], (char *)&dataSize, 4);
-
-  return statbuf.st_size;
 }
 
-/** Create the MacBinary file with a .bin extension
-    Use the out-filename option if given, else use the internal basename from the header
-*/
-FILE* writeHeader(const char *header, const char *outFileName) {
-  char filename[kMaxFileName + kSuffixLen + 1]; // .bin\0
-  int length;
-  const char *baseName;
+static FILE* writeHeader(const char *header, const char *binName) {
+  FILE *fp = fopen(binName, "w");
 
-  if (outFileName) {
-    length = strlen(outFileName);
-    baseName = outFileName;
-  } else {
-    length = header[kFileNameLen];
-    baseName = &header[kFileName];
-  }
-  memcpy(filename, baseName, length);
-  memcpy(&filename[length], kSuffix, kSuffixLen);
-  filename[length + kSuffixLen] = '\0';
-
-  FILE *fp = fopen(filename, "w");
   if (fp == NULL) bail("Couldn't open bin file");
   if (fwrite(header, 1, 128, fp) != 128) bail("Couldn't write header");
 
   return fp;
+}
+
+/** Create the MacBinary file and write it's header. Use the out-filename option
+    if given, else use name determined from input file and .bin extension. */
+static char* makeBinFileName(ADInfo *adi) {
+  char *baseName = (adi->dataFile) ? strdup(adi->dataFile) : strdup(adi->header);
+  size_t baseLength = strlen(baseName);
+  size_t suffixLength = sizeof(kSuffix);
+  char *binName = malloc(baseLength + suffixLength + 1);
+  memcpy(binName, baseName, baseLength);
+  free(baseName);
+  memcpy(&binName[baseLength], kSuffix, suffixLength);
+  binName[baseLength + suffixLength] = '\0';
+  return binName;
 }
 
 void copyFile(FILE *dest, FILE *source, int length) {
@@ -110,9 +103,9 @@ void padFile(FILE *fp, int length) {
   if (fwrite(gZeros, 1, padding, fp) != padding) bail("Couldn't write padding zeros");
 }
 
-void writeRFork(FILE *binFile, ADInfo *adi) {
-  int offset = ntohl(adi->entries[adi->rFork].offset);
-  int length = ntohl(adi->entries[adi->rFork].length);
+static void writeRFork(FILE *binFile, const ADInfo *adi) {
+  int offset = adi->rsrcOffset;
+  int length = adi->rsrcLength;
   if (fseek(adi->headerFile, offset, SEEK_SET) != 0) bail("Couldn't seek file");
   copyFile(binFile, adi->headerFile, length);
   padFile(binFile, length);
@@ -127,25 +120,26 @@ void writeDFork(FILE *binFile, const char *filename, int length) {
 int main(int argc, char *argv[]) {
   Arguments *args = commandArgs(argc, argv);
   ADInfo adi = readHeaderInfo(args->file1, args->file2);
-  int numEntries = adi.numEntries;
-  EntrySpec entries[numEntries];
-  adi.entries = entries;
   readEntriesList(&adi);
 
   if (args->verbose || args->noCreate) printVerbose(&adi);
   if (args->noCreate) return(EXIT_SUCCESS);
 
-  char header[128] = {0};
-  setFilename(header, adi.baseName);
-  registerEntries(header, &adi);
+  char binHeader[128] = {0};
+  char *baseName = (adi.single) ? basename(adi.header) : basename(adi.dataFile);
+  strncpy(adi.baseName, baseName, 64);
+  setFilename(binHeader, adi.baseName);
+  registerEntries(binHeader, &adi);
+  free(adi.entries);
 
-  int dataForkLen;
-  char *dataFile = adi.dataFile;
-  if (dataFile) dataForkLen = registerDataFork(header, dataFile);
+  if (adi.dataFile) registerDataFork(binHeader, &adi);
 
-  FILE *binFile = writeHeader(header, args->outFileName);
-  if (dataFile) writeDFork(binFile, dataFile, dataForkLen);
-  if (adi.rFork != kNotFound) writeRFork(binFile, &adi);
+  char* binName = (args->outFileName) ? args->outFileName : makeBinFileName(&adi);
+  FILE *binFile = writeHeader(binHeader, binName);
+  free(binName);
+
+  if (adi.dataFile) writeDFork(binFile, adi.dataFile, adi.dataLength);
+  if (adi.rsrcLength) writeRFork(binFile, &adi);
   fclose(binFile);
   return (EXIT_SUCCESS);
 }

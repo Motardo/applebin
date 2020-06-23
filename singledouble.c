@@ -6,7 +6,19 @@
 #include <string.h>
 #include "applebin.h"
 
-void printEntriesList(EntrySpec *entries, int numEntries) {
+typedef enum { Missing,
+               Unknown,
+               Neither,
+               Single,
+               Double
+} InputFileType;
+
+static ADInfo checkInputFiles(char *file1, char *file2);
+static InputFileType checkFileType(char *filename);
+static void printEntriesList(EntrySpec *entries, int numEntries);
+static void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
+
+static void printEntriesList(EntrySpec *entries, int numEntries) {
   printf("Num entries: %d\n", numEntries);
   for (int i = 0; i < numEntries; i++) {
     int type = ntohl(entries[i].type);
@@ -22,25 +34,37 @@ void printVerbose(ADInfo *adi) {
 
 /* Read the entries list beginning at offset 26 */
 void readEntriesList(ADInfo *adi) {
+  EntrySpec *entries = malloc(sizeof(EntrySpec) * adi->numEntries);
+  if (!entries) bail("Couldn't malloc entries list");
+  adi->entries = entries;
   if (fread(adi->entries, sizeof(EntrySpec), adi->numEntries, adi->headerFile) != adi->numEntries)
     bail("Couldn't read entries");
 }
 
-void registerEntries(char *header, ADInfo *adi) {
+static void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length) {
+  if (length > 8) {
+    // copy type and creator to header
+    if (fseek(fp, ntohl(offset), SEEK_SET) != 0) bail("Couldn't seek file");
+    if (fread(&header[kFileType], 1, 8, fp) != 8) bail("Couldn't read file");
+  }
+}
+
+void registerEntries(char *binHeader, ADInfo *adi) {
   EntrySpec* entries = adi->entries;
-  adi->rFork = kNotFound;
   for (unsigned int i = 0; i < adi->numEntries; i++) {
     int type = ntohl(entries[i].type);
-    if (type == FINFO) readFInfo(adi->headerFile, header, entries[i].offset, entries[i].length);
+    if (type == FINFO) readFInfo(adi->headerFile, binHeader, entries[i].offset, entries[i].length);
     else if (type == RFORK) {
-      adi->rFork = i;
-      memcpy(&header[kRForkLength], (char *)&(entries[i].length), 4);
+      adi->rsrcOffset = ntohl(entries[i].offset);
+      adi->rsrcLength = ntohl(entries[i].length);
+      memcpy(&binHeader[kRForkLength], (char *)&(entries[i].length), 4); // cast bc. binHeader not aligned
     } // TODO else if (type == DFORK)
   }
 }
 
-/** Read the first 26 bytes of the file and return the number of Entries or 0 if
-    it is not an AppleSingle or AppleDouble header file. */
+/** Get the number of entries in the given AppleSingle/Double header file. Read
+    the first 26 bytes of the file and return ADHeader with the number of
+    entries, or NULL if it is not an AppleSingle or AppleDouble header file. */
 ADHeader* readHeader(FILE *fp) {
   static ADHeader adh;
 
@@ -58,14 +82,6 @@ ADHeader* readHeader(FILE *fp) {
   return &adh;
 }
 
-typedef enum { Missing,
-               Unknown,
-               Neither,
-               Single,
-               Double
-} InputFileType;
-
-static InputFileType checkFileType(char *filename);
 static InputFileType checkFileType(char *filename) {
   if (!filename) return Missing;
   FILE *fp = openFile(filename);
@@ -80,21 +96,7 @@ static InputFileType checkFileType(char *filename) {
   return type;
 }
 
-#define Perror(result, ...) {   \
-  fprintf(stderr, __VA_ARGS__); \
-  exit(result);                 \
-}
-
 /*
-  Inputs:     file1
-              file2 which may be NULL
-
-  Outputs:    open FILE* positioned at EntriesList
-              numEntries
-              dataFile name which may be NULL
-              baseName
-              single/double
-
   TODO corner case where data fork happens to be a valid ADF?
 
   file1 can be: S D N
@@ -104,9 +106,6 @@ static InputFileType checkFileType(char *filename) {
   valid states: SM DN ND
 
 */
-
-
-static ADInfo checkInputFiles(char *file1, char *file2);
 static ADInfo checkInputFiles(char *file1, char *file2) {
   InputFileType type1, type2;
   type1 = checkFileType(file1);
@@ -118,14 +117,17 @@ static ADInfo checkInputFiles(char *file1, char *file2) {
   if (type1 == Double && type2 == Missing) Perror(4, "no second file given after AppleDouble file\n");
   if (type1 == Neither && type2 == Missing) Perror(5, "%s is not an AppleSingle/Double file\n", file1);
   if (type1 == Neither && type2 == Single) Perror(6, "extra argument: %s before AppleSingle file\n", file1);
-  if (type1 == Neither && type2 == Neither) Perror(5, "neither argument is an AppleSingle/Double file\n");
+  if (type1 == Neither && type2 == Neither) Perror(7, "neither argument is an AppleSingle/Double file\n");
 
   if (type1 == Double && type2 == Neither) return (ADInfo){.header=file1, .dataFile=file2};
   if (type1 == Neither && type2 == Double) return (ADInfo){.header=file2, .dataFile=file1};
-  if (type1 == Single && type2 == Missing) return (ADInfo){.header=file1};
+  if (type1 == Single && type2 == Missing) return (ADInfo){.header=file1, .single=1};
   Perror(9, "something went wrong\n");
 }
 
+/** Reads the AppleSingle/Double header file.
+    .header, .dataFile, .headerFile, .numEntries
+*/
 ADInfo readHeaderInfo(char *file1, char *file2) {
   ADInfo info = checkInputFiles(file1, file2);
   char *baseName = (info.single) ? basename(info.header) : basename(info.dataFile);

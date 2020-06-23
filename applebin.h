@@ -33,15 +33,20 @@ typedef struct ADInfo {
   signed char single; // 1 = singe, 0 = double
   FILE *headerFile;
   EntrySpec *entries;
-  unsigned int  rFork;
+  u_int32_t rsrcOffset;
+  u_int32_t rsrcLength;
+  u_int32_t dataOffset;
+  u_int32_t dataLength;
 } ADInfo;
 
-#define kNotFound -1U
+#define Perror(result, ...) {                   \
+    fprintf(stderr, __VA_ARGS__);               \
+    exit(result);                               \
+  }
 
 // singleDouble.c
 ADHeader* readHeader(FILE *fp);
 ADInfo readHeaderInfo(char *file1, char *file2);
-void printEntriesList(EntrySpec *entries, int numEntries);
 void readEntriesList(ADInfo *adi);
 void registerEntries(char *header, ADInfo *adi);
 void printVerbose(ADInfo *adi);
@@ -62,12 +67,7 @@ void printVerbose(ADInfo *adi);
 FILE* openFile(const char *filename);
 void bail(char *message);
 void readRFork(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
-void readFInfo(FILE *fp, char *header, u_int32_t offset, u_int32_t length);
 void registerRFork(char *header, ADInfo *adi);
 void setFilename(char *header, const char *filename);
-int registerDataFork(char *header, const char *filename);
-FILE* writeHeader(const char *header, const char *outFileName);
-void writeRFork(FILE *binFile, ADInfo *adi);
-void writeDFork(FILE *binFile, const char *filename, int length);
 void copyFile(FILE *dest, FILE *source, int length);
 void padFile(FILE *fp, int length);
