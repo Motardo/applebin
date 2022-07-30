@@ -1,27 +1,25 @@
 # applebin
-Convert *AppleDouble* file parts into a *MacBinary* file
+*applebin* is a simple utility for Unix that will convert *AppleSingle* and *AppleDouble*
+formatted files into *MacBinary* format.
 
 ## Description
-When some programs pack Macintosh file into a zip archive, they are converted to
-*AppleDouble* format. When they are unzipped by a program that does not
-understand this format (such as found on old pre-millenial Macs), the pieces are
-left broken as a file with a `._` prefix.
-
-`applebin` is a utility that converts the pieces into MacBinary format file with a
-`.bin` extension that old Mac software knows how to extract.
+Some Macintosh files, such as application programs, contain information in a
+resource fork. When transporting these files across non-Macintosh filesystems,
+the resource fork data must be encoded somehow, because other Unix and Windows filesystems
+do not support resource forks. Back in the 1990s, this encoding was accomplished 
+with the *MacBinary* format. In modern times, the newer *AppleSingle* and *AppleDouble*
+formats are more commonly used.
 
 ## Usage
-`applebin` takes two filename arguments on the command line. The first is the name
-of the `._` prefixed AppleDouble header file, and the second is the name of the
-data fork file (which is probably the same as the first file without the `._`
-prefix).
+`applebin` takes one or two filename arguments on the command line. The first is
+the name of the `AppleSingle/Double` header file (which probably starts with
+`._`), and the second is the name of the data fork file (which is probably the
+same as the first file without the `._` prefix).
 
 ``` shell
 $ applebin ._some-file some-file
+# creates some-file.bin
 ```
-
-`applebin` will output a summary of the AppleDouble file's parts and create a
-MacBinary format file called `some-file.bin` in the current directory
 
 ## Building
 Download and unzip or clone the repository, cd into the applebin folder and run make.
@@ -67,7 +65,7 @@ Type 8 Date/Times
 Type 10 Locked/Protected
 
 ## MacBinary Header file
-MacBinary format .bin 128 byte header
+MacBinary format 128 byte header
 
      0  1 zero
      1  1 length of name
